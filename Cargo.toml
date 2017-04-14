@@ -9,6 +9,8 @@ router = "*"
 handlebars = "0.25.2"
 handlebars-iron = "0.23.0"
 rustc-serialize = "0.3.23"
+mount = "0.3.0"
+staticfile = "0.4.0"
 
 [dependencies.iron]
 version = "*"

@@ -3,11 +3,37 @@
 
 <head>
   <title>Bento-photo</title>
+  <link rel="stylesheet" href="/css/uikit.min.css">
 </head>
 
 <body>
-  <h1>Instagram</h1>
-  <a href="/oauth">認可ページへ</a>
+  <div class="uk-container">
+    <div class="uk-card uk-card-body uk-card-primary">
+      <h1 class="uk-card-title">Instagram</h1>
+      <a class="uk-button uk-button-default" href="/oauth" uk-tooltip>Authorization</a>
+    </div>
+    <div class="uk-form-horizontal">
+      <legend class="uk-legend">Search</legend>
+      <div class="uk-margin">
+        <label class="uk-form-label">#hashtag</label>
+        <div class="uk-form-controls">
+          <input class="uk-input" type="text" placeholder="input hashtag">
+        </div>
+      </div>
+
+      <div class="uk-margin">
+        <label class="uk-form-label">username</label>
+        <div class="uk-form-controls">
+          <input class="uk-input" type="text" placeholder="input user name">
+        </div>
+      </div>
+
+      <div class="uk-margin">
+        <button class="uk-button uk-button-primary" uk-tooltip>Copy as HTML</button>
+        <button class="uk-button uk-button-primary" uk-tooltip>Copy as Markdown</button>
+      </div>
+    </div>
+  </div>
 </body>
 
 </html>

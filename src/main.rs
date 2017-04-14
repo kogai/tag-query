@@ -6,19 +6,25 @@ extern crate handlebars_iron as hbs;
 extern crate router;
 #[cfg(not(feature = "serde_type"))]
 extern crate rustc_serialize;
+extern crate mount;
+extern crate staticfile;
 
 use iron::prelude::*;
 use iron::modifiers::Redirect;
 use iron::{Url, status};
 use hbs::{Template, HandlebarsEngine, DirectorySource};
 use rustc_serialize::json::{Json};
+use staticfile::Static;
+use mount::Mount;
 
 use dotenv::dotenv;
 use std::env;
 use std::collections::BTreeMap;
+use std::path::Path;
 
 static INSTAGRAM_OAUTH_URI: &'static str = "https://api.instagram.com/oauth/authorize/";
 static REDIRECT_URI: &'static str = "https://bento-photo.herokuapp.com/";
+static GRANT_TYPE: &'static str = "authorization_code";
 
 fn main() {
     dotenv().ok();
@@ -37,11 +43,9 @@ fn main() {
     println!("{}", authorization_uri);
     println!("{}", client_secret);
 
-    let mut hbse = HandlebarsEngine::new();
-    hbse.add(Box::new(DirectorySource::new("./templates/", ".hbs")));
-    if let Err(r) = hbse.reload() {
-        println!("{}", r);
-    }
+    // -F 'grant_type=authorization_code' \
+    // -F 'redirect_uri=AUTHORIZATION_REDIRECT_URI' \
+    // -F 'code=CODE' \
 
     let router = router!(
         index: get "/" => |_: &mut Request| {
@@ -57,10 +61,21 @@ fn main() {
         },
     );
 
-    let mut chain = Chain::new(router);
+    let mut hbse = HandlebarsEngine::new();
+    hbse.add(Box::new(DirectorySource::new("./templates/", ".hbs")));
+    if let Err(r) = hbse.reload() {
+        println!("{}", r);
+    }
+
+    let mut mount = Mount::new();
+    mount.mount("/css", Static::new(Path::new("assets/css")));
+    mount.mount("/js", Static::new(Path::new("assets/js")));
+    mount.mount("/", router);
+
+    let mut chain = Chain::new(mount);
     chain.link_after(hbse);
 
     println!("Server start on {}", port);
-    Iron::new(chain).http(format!("0.0.0.0:{}", port)).expect("Server start process is failed.");
+    Iron::new(chain).http(format!("::1:{}", port)).expect("Server start process is failed.");
 }
 
