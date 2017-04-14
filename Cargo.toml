@@ -6,6 +6,9 @@ authors = ["小飼慎一 <kogai0121@gmail.com>"]
 [dependencies]
 dotenv = "0.10.0"
 router = "*"
+handlebars = "0.25.2"
+handlebars-iron = "0.23.0"
+rustc-serialize = "0.3.23"
 
 [dependencies.iron]
 version = "*"
