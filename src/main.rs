@@ -1,5 +1,7 @@
 extern crate dotenv;
 extern crate iron;
+#[macro_use]
+extern crate router;
 
 use iron::prelude::*;
 use iron::status;
@@ -7,8 +9,8 @@ use iron::status;
 use dotenv::dotenv;
 use std::env;
 
-static INSTAGRAM_OAUTH_URI: &str = "https://api.instagram.com/oauth/authorize/";
-static REDIRECT_URI: &str = "https://bento-photo.herokuapp.com/";
+static INSTAGRAM_OAUTH_URI: &'static str = "https://api.instagram.com/oauth/authorize/";
+static REDIRECT_URI: &'static str = "https://bento-photo.herokuapp.com/";
 
 fn main() {
     dotenv().ok();
@@ -24,10 +26,17 @@ fn main() {
              client_id,
              REDIRECT_URI);
 
+    let router = router!(
+        index: get "/" => |_: &mut Request| {
+            Ok(Response::with((status::Ok, "OK")))
+        },
+        oauth: get "/:oauth" => |_: &mut Request| {
+            Ok(Response::with((status::Ok, "OAUTH OK")))
+        },
+    );
+
     println!("Server start on {}", port);
 
-    Iron::new(|_: &mut Request| Ok(Response::with((status::Ok, "Hello world!"))))
-        .http(format!("localhost:{}", port))
-        .expect("Server start process is failed.");
+    Iron::new(router).http(format!("localhost:{}", port)).expect("Server start process is failed.");
 }
 
