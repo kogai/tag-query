@@ -5,4 +5,6 @@ authors = ["小飼慎一 <kogai0121@gmail.com>"]
 
 [dependencies]
 dotenv = "0.10.0"
-hyper = "0.10.8"
+
+[dependencies.iron]
+version = "*"
