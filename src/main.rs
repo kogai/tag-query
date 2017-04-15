@@ -63,14 +63,13 @@ fn main() {
 
     let mut hbse = HandlebarsEngine::new();
     hbse.add(Box::new(DirectorySource::new("./templates/", ".hbs")));
-    if let Err(r) = hbse.reload() {
-        println!("{}", r);
-    }
+    hbse.reload().expect("template can't reload collectory.");
 
     let mut mount = Mount::new();
-    mount.mount("/css", Static::new(Path::new("assets/css")));
-    mount.mount("/js", Static::new(Path::new("assets/js")));
-    mount.mount("/", router);
+    mount
+        .mount("/css", Static::new(Path::new("assets/css")))
+        .mount("/js", Static::new(Path::new("assets/js")))
+        .mount("/", router);
 
     let mut chain = Chain::new(mount);
     chain.link_after(hbse);
