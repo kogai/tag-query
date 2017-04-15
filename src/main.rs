@@ -22,7 +22,7 @@ use dotenv::dotenv;
 use std::env;
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::io::Read;
+use std::collections::HashMap;
 
 static INSTAGRAM_OAUTH_URI: &'static str = "https://api.instagram.com/oauth/authorize/";
 static REDIRECT_URI: &'static str = "https://bento-photo.herokuapp.com/";
@@ -48,8 +48,6 @@ fn main() {
             match req.url.query() {
                 Some(query) => {
                     let code = query.split("=").last().expect("query parsing is failed").to_string();
-                    let mut buffer = String::new();
-                    
                     let params = [
                         ("client_id", client_id.clone()),
                         ("client_secret", client_secret.clone()),
@@ -61,14 +59,16 @@ fn main() {
                     println!("{:?}", params);
 
                     let client = reqwest::Client::new().expect("Create HTTP client is failed");
-                    client.post("https://api.instagram.com/oauth/access_token")
+                    let result = client.post("https://api.instagram.com/oauth/access_token")
                         .form(&params)
                         .send()
                         .expect("send Request failed")
-                        .read_to_string(&mut buffer)
-                        .expect("read Response failed");
+                        .json::<HashMap<String, String>>()
+                        .expect("Parse JSON failed")
+                        ;
                     
-                    println!("{}", buffer);
+                    println!("{:?}", result.get("access_token"));
+                    println!("{:?}", result.get("user"));
 
                     let mut resp = Response::new();
                     let data = BTreeMap::<String, Json>::new();
