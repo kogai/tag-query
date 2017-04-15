@@ -8,6 +8,7 @@ extern crate router;
 extern crate rustc_serialize;
 extern crate mount;
 extern crate staticfile;
+extern crate reqwest;
 
 use iron::prelude::*;
 use iron::modifiers::Redirect;
@@ -21,6 +22,7 @@ use dotenv::dotenv;
 use std::env;
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::io::Read;
 
 static INSTAGRAM_OAUTH_URI: &'static str = "https://api.instagram.com/oauth/authorize/";
 static REDIRECT_URI: &'static str = "https://bento-photo.herokuapp.com/";
@@ -40,19 +42,46 @@ fn main() {
                                     INSTAGRAM_OAUTH_URI,
                                     client_id,
                                     REDIRECT_URI);
-    println!("{}", authorization_uri);
-    println!("{}", client_secret);
-
-    // -F 'grant_type=authorization_code' \
-    // -F 'redirect_uri=AUTHORIZATION_REDIRECT_URI' \
-    // -F 'code=CODE' \
 
     let router = router!(
-        index: get "/" => |_: &mut Request| {
-            let mut resp = Response::new();
-            let data = BTreeMap::<String, Json>::new();
-            resp.set_mut(Template::new("index", data)).set_mut(status::Ok);
-            Ok(resp)
+        index: get "/" => move |req: &mut Request| {
+            match req.url.query() {
+                Some(query) => {
+                    let code = query.split("=").last().expect("query parsing is failed").to_string();
+                    let mut buffer = String::new();
+                    
+                    let params = [
+                        ("client_id", client_id.clone()),
+                        ("client_secret", client_secret.clone()),
+                        ("grant_type", GRANT_TYPE.clone().to_string()),
+                        ("redirect_uri", REDIRECT_URI.clone().to_string()),
+                        ("code", code.to_string())
+                    ];
+
+                    println!("{:?}", params);
+
+                    let client = reqwest::Client::new().expect("Create HTTP client is failed");
+                    client.post("https://api.instagram.com/oauth/access_token")
+                        .form(&params)
+                        .send()
+                        .expect("send Request failed")
+                        .read_to_string(&mut buffer)
+                        .expect("read Response failed");
+                    
+                    println!("{}", buffer);
+
+                    let mut resp = Response::new();
+                    let data = BTreeMap::<String, Json>::new();
+                    resp.set_mut(Template::new("index", data)).set_mut(status::Ok);
+                    Ok(resp)
+                },
+                None => {
+                    let mut resp = Response::new();
+                    let data = BTreeMap::<String, Json>::new();
+                    resp.set_mut(Template::new("index", data)).set_mut(status::Ok);
+                    Ok(resp)
+                },
+            }
         },
         oauth: get "/:oauth" => move |_: &mut Request| {
             Ok(Response::with((status::Found, Redirect(
@@ -75,6 +104,6 @@ fn main() {
     chain.link_after(hbse);
 
     println!("Server start on {}", port);
-    Iron::new(chain).http(format!("::1:{}", port)).expect("Server start process is failed.");
+    Iron::new(chain).http(format!("0.0.0.0:{}", port)).expect("Server start process is failed.");
 }
 
