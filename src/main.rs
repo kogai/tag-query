@@ -10,6 +10,7 @@ extern crate mount;
 extern crate staticfile;
 extern crate reqwest;
 extern crate serde_json;
+extern crate iron_sessionstorage;
 
 use iron::prelude::*;
 use iron::modifiers::Redirect;
@@ -19,6 +20,9 @@ use rustc_serialize::json::{Json};
 use staticfile::Static;
 use mount::Mount;
 use serde_json::Value;
+use iron_sessionstorage::traits::*;
+use iron_sessionstorage::SessionStorage;
+use iron_sessionstorage::backends::SignedCookieBackend;
 
 use dotenv::dotenv;
 use std::env;
@@ -51,6 +55,17 @@ fn value_to_json(x: Value) -> Json {
         _ => Json::Null,
     }
 }
+
+struct AccessToken(String);
+impl iron_sessionstorage::Value for AccessToken {
+    fn get_key() -> &'static str { "access_token" }
+    fn into_raw(self) -> String { self.0 }
+    fn from_raw(value: String) -> Option<Self> {
+        // Maybe validate that only 'a's are in the string
+        Some(AccessToken(value))
+    }
+}
+
 fn main() {
     dotenv().ok();
 
@@ -67,11 +82,11 @@ fn main() {
                                     client_id,
                                     redirect_url,
                                     "public_content".to_string());
-                                    
+
     let http_client = reqwest::Client::new().expect("Create HTTP client is failed");
     let router = router!(
         index: get "/" => move |req: &mut Request| {
-            match req.url.query() {
+            match req.url.clone().query() {
                 Some(query) => {
                     let code = query.split("=").last().expect("query parsing is failed").to_string();
                     let params = [
@@ -89,8 +104,11 @@ fn main() {
 
                     let result_json = result.json::<HashMap<String, Value>>().expect("Parse JSON failed");
                     let data = match result_json.get("access_token") {
-                        Some(access_token) => {
-                            let url = format!("https://api.instagram.com/v1/tags/nofilter/media/recent?access_token={}", access_token.as_str().unwrap());
+                        Some(at) => {
+                            let access_token = at.as_str().unwrap();
+                            req.session().set(AccessToken(access_token.to_string())).unwrap();
+
+                            let url = format!("https://api.instagram.com/v1/tags/nofilter/media/recent?access_token={}", access_token);
                             println!("url: {}", url);
 
                             let result = http_client
@@ -113,7 +131,9 @@ fn main() {
 
                     let mut resp = Response::new();
                     resp.set_mut(Template::new("index", data)).set_mut(status::Ok);
-                    Ok(resp)
+                    Ok(Response::with((status::Found, Redirect(
+                        Url::parse(redirect_url.as_str()).expect("parse url failed")
+                    ))))
                 },
                 None => {
                     let mut resp = Response::new();
@@ -139,9 +159,12 @@ fn main() {
         .mount("/css", Static::new(Path::new("assets/css")))
         .mount("/js", Static::new(Path::new("assets/js")))
         .mount("/", router);
+    
+    let session = SessionStorage::new(SignedCookieBackend::new(b"my_cookie_secret".to_vec()));
 
     let mut chain = Chain::new(mount);
     chain.link_after(hbse);
+    chain.link_around(session);
 
     println!("Server start on {}", port);
     Iron::new(chain).http(format!("0.0.0.0:{}", port)).expect("Server start process is failed.");
