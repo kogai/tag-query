@@ -62,10 +62,12 @@ fn main() {
     let redirect_url = env::var("REDIRECT_URL").expect("lack of redirect url.");
     let client_id = env::var("INSTAGRAM_CLIENT_ID").expect("lack of instagram client id.");
     let client_secret = env::var("INSTAGRAM_CLIENT_SECRET").expect("lack of instagram client secret.");
-    let authorization_uri = format!("{}?client_id={}&redirect_uri={}&response_type=code",
+    let authorization_uri = format!("{}?client_id={}&redirect_uri={}&response_type=code&scope={}",
                                     INSTAGRAM_OAUTH_URI,
                                     client_id,
-                                    redirect_url);
+                                    redirect_url,
+                                    "public_content".to_string());
+                                    
     let http_client = reqwest::Client::new().expect("Create HTTP client is failed");
     let router = router!(
         index: get "/" => move |req: &mut Request| {
