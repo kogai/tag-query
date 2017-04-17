@@ -11,6 +11,7 @@ extern crate staticfile;
 extern crate reqwest;
 extern crate serde_json;
 extern crate iron_sessionstorage;
+extern crate urlencoded;
 
 use iron::prelude::*;
 use iron::headers::ContentType;
@@ -24,6 +25,7 @@ use serde_json::Value;
 use iron_sessionstorage::traits::*;
 use iron_sessionstorage::SessionStorage;
 use iron_sessionstorage::backends::SignedCookieBackend;
+use urlencoded::UrlEncodedQuery;
 
 use dotenv::dotenv;
 use std::env;
@@ -112,7 +114,6 @@ fn main() {
                             req.session().set(AccessToken(access_token.to_string())).unwrap();
 
                             let url = format!("https://api.instagram.com/v1/tags/nofilter/media/recent?access_token={}", access_token);
-                            println!("url: {}", url);
 
                             let result = http_client
                                 .get(url.as_str())
@@ -130,8 +131,6 @@ fn main() {
                         None => HashMap::<String, Json>::new(),
                     };
 
-                    println!("{:?}", data);
-
                     let mut resp = Response::new();
                     resp.set_mut(Template::new("index", data)).set_mut(status::Ok);
                     Ok(Response::with((status::Found, Redirect(
@@ -146,12 +145,12 @@ fn main() {
                 },
             }
         },
-        oauth: get "/:oauth" => move |_: &mut Request| {
+        oauth: get "/oauth" => move |_: &mut Request| {
             Ok(Response::with((status::Found, Redirect(
                 Url::parse(authorization_uri.as_str()).expect(format!("authorization_uri is invalid => {}", authorization_uri).as_str())
             ))))
         },
-        api_username: get "/:api/:username" => move |req: &mut Request| {
+        api_username: get "/api/username" => move |req: &mut Request| {
             let username = match req.url.clone().query() {
                 Some(query) => query.split("=").last().expect("query parsing is failed"),
                 _ => ""
@@ -167,6 +166,45 @@ fn main() {
             };
 
             let url = format!("https://api.instagram.com/v1/users/search?q={}&access_token={}", username, access_token.to_string());
+
+            let http_client = reqwest::Client::new().expect("Create HTTP client is failed");
+            let mut buffer = String::new();
+            http_client
+                .get(url.as_str())
+                .send()
+                .expect("send Request failed")
+                .read_to_string(&mut buffer)
+                .expect("read JSON string failed")
+                ;
+
+            Ok(Response::with((ContentType::json().0, status::Ok, buffer)))
+        },
+
+        api_hashtag: get "/api/hashtag" => move |req: &mut Request| {
+            fn get_query(x: Option<&Vec<String>>) -> &str {
+                match x {
+                    Some(y) => match y.first() {
+                        Some(z) => z.as_str(),
+                        None => "",
+                    },
+                    None => "",
+                }
+            }
+            let access_token = match try!(req.session().get::<AccessToken>()) {
+                Some(y) => y.0,
+                None => "Access token is Not Found".to_string(),
+            };
+            
+            let (user_id, hashtag) = match req.get_ref::<UrlEncodedQuery>() {
+                Ok(queries) => (get_query(queries.get("user_id")), get_query(queries.get("hashtag"))),
+                _ => ("", "")
+            };
+            
+            let url = format!(
+                "https://api.instagram.com/v1/users/{}/media/recent/?access_token={}",
+                user_id.to_string(),
+                access_token.to_string()
+            );
 
             let http_client = reqwest::Client::new().expect("Create HTTP client is failed");
             let mut buffer = String::new();
