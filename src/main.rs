@@ -13,6 +13,7 @@ extern crate serde_json;
 extern crate iron_sessionstorage;
 
 use iron::prelude::*;
+use iron::headers::ContentType;
 use iron::modifiers::Redirect;
 use iron::{Url, status};
 use hbs::{Template, HandlebarsEngine, DirectorySource};
@@ -26,6 +27,7 @@ use iron_sessionstorage::backends::SignedCookieBackend;
 
 use dotenv::dotenv;
 use std::env;
+use std::io::Read;
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::collections::HashMap;
@@ -56,12 +58,13 @@ fn value_to_json(x: Value) -> Json {
     }
 }
 
+#[derive(Debug)]
 struct AccessToken(String);
+
 impl iron_sessionstorage::Value for AccessToken {
     fn get_key() -> &'static str { "access_token" }
     fn into_raw(self) -> String { self.0 }
     fn from_raw(value: String) -> Option<Self> {
-        // Maybe validate that only 'a's are in the string
         Some(AccessToken(value))
     }
 }
@@ -83,7 +86,6 @@ fn main() {
                                     redirect_url,
                                     "public_content".to_string());
 
-    let http_client = reqwest::Client::new().expect("Create HTTP client is failed");
     let router = router!(
         index: get "/" => move |req: &mut Request| {
             match req.url.clone().query() {
@@ -97,6 +99,7 @@ fn main() {
                         ("code", code.to_string())
                     ];
 
+                    let http_client = reqwest::Client::new().expect("Create HTTP client is failed");
                     let mut result = http_client.post("https://api.instagram.com/oauth/access_token")
                         .form(&params)
                         .send()
@@ -148,6 +151,35 @@ fn main() {
                 Url::parse(authorization_uri.as_str()).expect(format!("authorization_uri is invalid => {}", authorization_uri).as_str())
             ))))
         },
+        api_username: get "/:api/:username" => move |req: &mut Request| {
+            let username = match req.url.clone().query() {
+                Some(query) => query.split("=").last().expect("query parsing is failed"),
+                _ => ""
+            }.to_string();
+            
+            let access_token = match try!(req.session().get::<AccessToken>()) {
+                Some(y) => y.0,
+                None => "Access token is Not Found".to_string(),
+            };
+            
+            if access_token.len() == 0 {
+                return Ok(Response::with((ContentType::json().0, status::Ok, "{}")))
+            };
+
+            let url = format!("https://api.instagram.com/v1/users/search?q={}&access_token={}", username, access_token.to_string());
+
+            let http_client = reqwest::Client::new().expect("Create HTTP client is failed");
+            let mut buffer = String::new();
+            http_client
+                .get(url.as_str())
+                .send()
+                .expect("send Request failed")
+                .read_to_string(&mut buffer)
+                .expect("read JSON string failed")
+                ;
+
+            Ok(Response::with((ContentType::json().0, status::Ok, buffer)))
+        }
     );
 
     let mut hbse = HandlebarsEngine::new();
@@ -160,11 +192,11 @@ fn main() {
         .mount("/js", Static::new(Path::new("assets/js")))
         .mount("/", router);
     
+    let mut chain = Chain::new(mount);
     let session = SessionStorage::new(SignedCookieBackend::new(b"my_cookie_secret".to_vec()));
 
-    let mut chain = Chain::new(mount);
-    chain.link_after(hbse);
     chain.link_around(session);
+    chain.link_after(hbse);
 
     println!("Server start on {}", port);
     Iron::new(chain).http(format!("0.0.0.0:{}", port)).expect("Server start process is failed.");
