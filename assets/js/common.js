@@ -10,6 +10,33 @@ const Search = (name, onChange) => React.createElement("div", {
   })),
 ]);
 
+class Button extends React.Component {
+  componentWillUnmount() {
+    this.clipboard && this.clipboard.destroy();
+  }
+
+  componentDidMount() {
+    this.clipboard = new Clipboard(this.refs.element);
+  }
+
+  render() {
+    const {label, copy} = this.props;
+    return (React.createElement("button", {
+        className: "uk-button uk-button-primary",
+        style: { margin: 4 },
+        "data-clipboard-text": copy,
+        ref: "element",
+      }, label));
+  } 
+}
+
+const Buttons = (htmlString, markdownString) => React.createElement("div", {
+  className: "uk-margin",
+}, [
+  React.createElement(Button, {label: "Copy as HTML", copy: htmlString}),
+  React.createElement(Button, {label: "Copy as Markdown", copy: markdownString}),
+]);
+
 const Root = (state) => {
   return React.createElement(
     'div',
@@ -17,7 +44,8 @@ const Root = (state) => {
     [
       Search("username", state.onChangeUsername),
       state.user_ids.length > 0 && Search("hashtag", state.onChangeHashtag),
-      state.medias.map(m => React.createElement("img", {src: m.src}))
+      state.medias.map(m => React.createElement("img", {src: m.src})),
+      Buttons(state.htmlString, state.markdownString),
     ]
   );
 };
@@ -41,7 +69,19 @@ class Container extends React.Component {
           credentials: 'include'
         })
         .then(r => r.json())
-        .then(xs => this.setState({ medias: xs.map(media => ({ src: media.images.thumbnail.url, link: media.link })) }))
+        .then(xs => {
+          const medias = xs.map(media => ({
+            src: media.images.thumbnail.url,
+            link: media.link
+          }));
+
+          const htmlString = medias.map(m => `<img src="${m.src}" />`).join("\n");
+          const markdownString = medias.map(m => `![](${m.src})`).join("\n");
+
+          this.setState({ medias });
+          this.setState({ htmlString });
+          this.setState({ markdownString });
+        })
         ;
 
       this.setState({ hashtag });
@@ -54,10 +94,11 @@ class Container extends React.Component {
       medias: [],
       onChangeUsername,
       onChangeHashtag,
+      htmlString: "",
+      markdownString: "",
     };
   }
   render() {
-    console.log(this.state);
     return Root(this.state);
   }
 }
