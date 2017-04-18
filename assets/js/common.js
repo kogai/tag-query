@@ -30,7 +30,8 @@ class Container extends React.Component {
           credentials: 'include'
         })
         .then(r => r.json())
-        .then(r => r.data && this.setState({ user_ids: r.data.map(d => d.id) }));
+        .then(r => r.data && this.setState({ user_ids: r.data.map(d => d.id) }))
+        ;
 
       this.setState({ username });
     };
@@ -40,7 +41,8 @@ class Container extends React.Component {
           credentials: 'include'
         })
         .then(r => r.json())
-        .then(r => r.data && this.setState({ medias: r.data.map(d => ({ src: d.images.thumbnail.url, link: d.link })) }));
+        .then(xs => this.setState({ medias: xs.map(media => ({ src: media.images.thumbnail.url, link: media.link })) }))
+        ;
 
       this.setState({ hashtag });
     };

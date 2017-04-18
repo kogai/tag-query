@@ -115,18 +115,17 @@ fn main() {
 
                             let url = format!("https://api.instagram.com/v1/tags/nofilter/media/recent?access_token={}", access_token);
 
-                            let result = http_client
+                            http_client
                                 .get(url.as_str())
                                 .send()
                                 .expect("send Request failed")
                                 .json::<HashMap<String, Value>>()
-                                .expect("Parse JSON failed");
-
-                            let mut buffer = HashMap::<String, Json>::new();
-                            for (key, value) in result.into_iter() {
-                                buffer.insert(key, value_to_json(value));
-                            }
-                            buffer
+                                .expect("Parse JSON failed")
+                                .into_iter()
+                                .fold(HashMap::<String, Json>::new(), |mut acc, (key, value)| {
+                                    acc.insert(key, value_to_json(value));
+                                    acc
+                                })
                         },
                         None => HashMap::<String, Json>::new(),
                     };
@@ -207,16 +206,39 @@ fn main() {
             );
 
             let http_client = reqwest::Client::new().expect("Create HTTP client is failed");
-            let mut buffer = String::new();
-            http_client
+            let response = http_client
                 .get(url.as_str())
                 .send()
                 .expect("send Request failed")
-                .read_to_string(&mut buffer)
-                .expect("read JSON string failed")
+                .json::<HashMap<String, Value>>()
+                .expect("Parse JSON failed")
+                .into_iter()
+                .filter(|x| { (&x.0).as_str() == "data" })
+                .map(|x| {
+                    match x.1 {
+                        Value::Array(ys) => {
+                            ys
+                                .into_iter()
+                                .filter(|media| {
+                                    if let &Value::Object(ref m) = media {
+                                        if let &Value::Array(ref tags) = m.get("tags").unwrap() {
+                                            tags.contains(&Value::String(hashtag.to_string()))
+                                        } else { false }
+                                    } else { false }
+                                })
+                                .map(value_to_json)
+                                .collect::<Vec<Json>>()
+                        },
+                        _ => vec![],
+                    }
+                })
+                .fold(vec![], |mut acc, mut xs| {
+                    acc.append(&mut xs);
+                    acc
+                })
                 ;
-
-            Ok(Response::with((ContentType::json().0, status::Ok, buffer)))
+            
+            Ok(Response::with((ContentType::json().0, status::Ok, Json::Array(response).to_string())))
         }
     );
 
